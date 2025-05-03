@@ -1,0 +1,17 @@
+fastapi[standard]
+uvicorn
+sqlalchemy
+alembic
+psycopg2-binary
+python-jose
+passlib
+python-multipart
+pydantic
+pydantic-settings
+python-dotenv
+bcrypt
+pydantic[email]
+stripe
+requests
+rave-python
+resend
