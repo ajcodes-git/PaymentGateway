@@ -35,7 +35,7 @@ class FlutterwaveService(PaymentService):
                     "phonenumber": customer.get("phone_number", None),
                 },
                 "customizations": {
-                    "title": f"DoosCorp {metadata.get("app_name").title()}" if metadata.get("app_name") else "DoosCorp Apps",
+                    "title": metadata.get("app_name", "DoosCorp Apps"),
                     "description": metadata.get("app_description", "An app owned by DoosCorp"),
                 },
                 "max_retry_attempt": 5,
