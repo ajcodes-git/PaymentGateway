@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY")
     STRPE_ENDPOINT_SECRET: str = os.getenv("STRPE_ENDPOINT_SECRET")
 
+    PAYPAL_CLIENT_ID: str = os.getenv("PAYPAL_CLIENT_ID")
+    PAYPAL_CLIENT_SECRET: str = os.getenv("PAYPAL_CLIENT_SECRET")
+
     # Email service
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY")
     NOREPLY_EMAIL: str = os.getenv("NOREPLY_EMAIL")

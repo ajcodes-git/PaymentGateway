@@ -16,6 +16,7 @@ class PaymentStatus(str, enum.Enum):
 class PaymentGateway(str, enum.Enum):
     STRIPE = "stripe"
     FLUTTERWAVE = "flutterwave"
+    PAYPAL = "paypal"
 
 class PaymentCurrency(str, enum.Enum):
     USD="usd"

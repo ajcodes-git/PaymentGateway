@@ -4,7 +4,7 @@ from app.schemas.payment import PaymentRequest
 from app.repositories import transaction_repository, app_client_repository
 from app.utils.response import response
 from fastapi import status
-from app.services.payment_providers import payment_interface, flutterwave_service, stripe_service
+from app.services.payment_providers import payment_interface, flutterwave_service, stripe_service, paypal_service
 from app.services.email_provider import resend_service
 from app.utils.config import settings
 from typing import Type
@@ -49,6 +49,7 @@ def make_payment(db: Session, payment_in: PaymentRequest, metadata: dict):
         GATEWAY_SERVICES: dict[PaymentGateway, Type[payment_interface.PaymentService]] = {
             PaymentGateway.FLUTTERWAVE: flutterwave_service.FlutterwaveService,
             PaymentGateway.STRIPE: stripe_service.StripeService,
+            PaymentGateway.PAYPAL: paypal_service.PayPalService
         }
         
         if payment_in.gateway not in GATEWAY_SERVICES:
@@ -59,7 +60,6 @@ def make_payment(db: Session, payment_in: PaymentRequest, metadata: dict):
         res = service.initiate_payment(amount, currency, transaction.id, customer_data, metadata)
 
         # update transaction by setting gateway_ref field
-        print("Gateway_ref: ", res.get('gateway_ref'))
         gateway_ref = res.pop('gateway_ref')
         updated_transaction = transaction_repository.update(db, transaction, {'gateway_ref': gateway_ref})
         
@@ -178,6 +178,57 @@ def verify_stripe_payment(db: Session, session_id: str):
     except Exception as e:
         return response(status_code=500, message=str(e))
     
+
+def verify_paypal_payment(db: Session, transaction_id: str):
+    try:
+        transaction = transaction_repository.get_by_gateway_ref(db, transaction_id)
+        if not transaction:
+            return response(status.HTTP_404_NOT_FOUND, f"No transaction with transaction_id '{transaction_id}'")
+        
+        service = paypal_service.PayPalService()
+        event_dict = service.verify_payment(transaction_id)
+        if not event_dict:
+            return response(status.HTTP_404_NOT_FOUND, f"No transaction with transaction_id '{transaction_id}'")
+
+        if event_dict.get("state") != 'approved':
+            _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.FAILED})
+
+            # Send an email to admin and customer
+            _send_email_to_admin_and_customer(
+                customer=transaction.email, 
+                app_source=transaction.app_source, 
+                currency=transaction.currency, 
+                amount=transaction.amount,
+                event_body=event_dict,
+                is_success=False
+            )
+
+            return response(status.HTTP_200_OK, f"Payment with transaction_id '{transaction_id}' NOT paid!", event_dict)
+        
+        # Payment successfull
+        _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.SUCCESS})
+
+         # Send an email to admin and customer
+        _send_email_to_admin_and_customer(
+            customer=transaction.email, 
+            app_source=transaction.app_source, 
+            currency=transaction.currency, 
+            amount=transaction.amount,
+            event_body=event_dict,
+            is_success=False
+        )
+
+        if transaction.meta:
+            webhook_body = {
+                'payment_id': transaction_id,
+                'is_paid': True,
+                'metadata': transaction.meta
+            }
+            res = request_webhook_endpoint(webhook_body)
+        return response(status.HTTP_200_OK, f"Payment with transaction_id '{transaction_id}' successfull. Email notification sent to both admin and customer", event_dict)
+    except Exception as e:
+        return response(status_code=500, message=str(e))
+
 
 async def flutterwave_webhook(db: Session, request):
     try:
@@ -322,6 +373,62 @@ async def stripe_webhook(db: Session, request):
         return response(status.HTTP_400_BAD_REQUEST, "Invalid payload")
     except stripe.error.SignatureVerificationError:
         return response(status.HTTP_400_BAD_REQUEST, "Invalid signature")
+
+
+async def paypal_webhook(db: Session, request):
+    payload = await request.json()
+    event_dict = payload.get('resource', None)
+    if not event_dict:
+        return response(status.HTTP_400_BAD_REQUEST, "Invalid payload")
+    
+    transaction_id = event_dict.get("id", None)
+    if not transaction_id:
+        return response(status.HTTP_400_BAD_REQUEST, "Invalid Transaction ID")
+    
+    transaction = transaction_repository.get_by_gateway_ref(db, transaction_id)
+    if not transaction:
+        return response(status.HTTP_404_NOT_FOUND, f"Transaction with transaction_id {transaction_id} not found")
+    
+    if event_dict['state'] == "approved":
+        print("Succeeded: ", transaction_id)
+        
+        # update transaction
+        _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.SUCCESS})
+
+        # Send an email to admin and customer
+        _send_email_to_admin_and_customer(
+            customer=transaction.email, 
+            app_source=transaction.app_source, 
+            currency=transaction.currency, 
+            amount=transaction.amount,
+            event_body=event_dict,
+            is_success=True
+        )
+
+        if transaction.meta:
+            webhook_body = {
+                'payment_id': transaction_id,
+                'is_paid': True,
+                'metadata': transaction.meta
+            }
+            res = request_webhook_endpoint(webhook_body)
+    else:
+        print("Failed: ", transaction_id)
+        
+        # update transaction
+        _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.FAILED})
+
+        # Send an email to admin and customer
+        _send_email_to_admin_and_customer(
+            customer=transaction.email, 
+            app_source=transaction.app_source, 
+            currency=transaction.currency, 
+            amount=transaction.amount,
+            event_body=event_dict,
+            is_success=False
+        )
+
+    return "OK", 200
 
 
 def _send_email_to_admin_and_customer(customer, app_source, currency, amount, event_body: dict, is_success: bool):

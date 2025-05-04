@@ -38,6 +38,15 @@ def verify_stripe_payment(
     return payment_service.verify_stripe_payment(db, session_id)
 
 
+@router.get("/verify_paypal_payment")
+def verify_paypal_payment(
+    transaction_id: str,
+    db: Session = Depends(get_db)
+):
+    """Verify PayPal Payment Manualy"""
+    return payment_service.verify_paypal_payment(db, transaction_id)
+
+
 @router.post("/webhook_flutterwave")
 async def flutterwave_webhook(
     request: Request,
@@ -54,3 +63,12 @@ async def stripe_webhook(
 ):
     """Webhook to verify stripe payments"""
     return await payment_service.stripe_webhook(db, request)
+
+
+@router.post("/webhook_paypal")
+async def paypal_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Webhook to verify paypal payments"""
+    return await payment_service.paypal_webhook(db, request)
