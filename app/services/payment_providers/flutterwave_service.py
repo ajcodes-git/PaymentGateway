@@ -46,6 +46,17 @@ class FlutterwaveService(PaymentService):
                 }
             }
         )
+        print("REQUEST: ", res.request.body)
+        print("REQUEST HEADERS: ", res.request.headers)
+        print("RESPONSE: ", res)
+        print("RESPOMSE HEADERS: ", res.headers)
+        print("RESPONSE STATUS CODE: ", res.status_code)
+        print("RESPONSE TEXT: ", res.text)
+        print("RESPONSE URL: ", res.url)
+        print("RESPONSE COOKIES: ", res.cookies)
+        print("RESPONSE CONTENT: ", res.content)
+        print("RESPONSE RAW: ", res.raw)
+        print("RESPONSE STATUS: ", res.status_code)
         print("RESPONSE: ", res.json())
         res.raise_for_status()  # Raise an error for bad responses
 
