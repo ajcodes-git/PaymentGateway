@@ -232,8 +232,10 @@ def verify_paypal_payment(db: Session, transaction_id: str):
 
 async def flutterwave_webhook(db: Session, request):
     try:
+        print("Received webhook from flutterwave")
         event_dict = await request.json() # request.json() is always async in FastAPI, so at least webhook_flutterwave should be async
-        signature = request.headers.get("verif-hash")
+        print(f"Received event: {event_dict}")
+        signature = request.headers.get("verif-hash", None)
 
         if not signature or signature != settings.FLW_SECRET_HASH:
             return response(status.HTTP_401_UNAUTHORIZED, "This request is not form flutterwave‼️")
@@ -242,6 +244,7 @@ async def flutterwave_webhook(db: Session, request):
         payload = event_dict.get("data")
 
         if event == "charge.completed" or event == "transfer.completed":
+            print("Completed event: ", event)
             tx_ref = payload["tx_ref"]
             email = payload["customer"]["email"]
             amount = payload["amount"]
@@ -266,6 +269,7 @@ async def flutterwave_webhook(db: Session, request):
                 amount == verify['amount'] and 
                 payload['currency'].lower() == verify['currency'].lower()
             ):
+                print("Succeeded: ", tx_ref)
                 _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.SUCCESS})
 
                 # Send an email to admin and customer
