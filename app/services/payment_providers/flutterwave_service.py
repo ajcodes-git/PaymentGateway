@@ -85,7 +85,8 @@ class FlutterwaveService(PaymentService):
             "Authorization": f"Bearer {settings.FLW_SECRET_KEY}",
             "Content-Type": "application/json"
         }
-        
+        print("CONVERSION HEADERS: ", headers)
+
         params = {
             "amount": amount,
             "source_currency": source_currency,
@@ -99,6 +100,7 @@ class FlutterwaveService(PaymentService):
             if not result:
                 return None
             
+            print("CONVERSION RESULT: ", result)
             data = result.get('data', None)
             return data.get('source', {}).get('amount') if data else None
         except requests.exceptions.RequestException as e:
