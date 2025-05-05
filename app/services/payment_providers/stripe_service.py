@@ -15,6 +15,8 @@ class StripeService(PaymentService):
 
         amount_in_cents = int(amount * 100)
 
+        print(f"Stripe Payment: {amount_in_cents} cents for {currency} to {customer['email']}")
+
         # Use Stripe Checkout Session with multiple payment methods enabled
         session = stripe.checkout.Session.create(
             payment_method_types=["card", "us_bank_account"], 
@@ -39,6 +41,8 @@ class StripeService(PaymentService):
                 "custom": json.dumps(metadata.get("custom", None))
             }
         )
+
+        print(f"Stripe Session: {session}")
 
         return {"payment_link": session.url, "gateway_ref": session.id}
     

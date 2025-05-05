@@ -17,8 +17,6 @@ class FlutterwaveService(PaymentService):
 
         tx_ref = self.generate_tx_ref()
 
-        print("FLW TX REF: ", tx_ref)
-        print("SETTING FLW SECRET KEY: ", settings.FLW_SECRET_KEY)
 
         res = requests.post(
             "https://api.flutterwave.com/v3/payments",
@@ -49,21 +47,7 @@ class FlutterwaveService(PaymentService):
                 }
             }
         )
-        print("REQUEST: ", res.request.body)
-        print("REQUEST HEADERS: ", res.request.headers)
-        print("RESPONSE: ", res)
-        print("RESPOMSE HEADERS: ", res.headers)
-        print("RESPONSE STATUS CODE: ", res.status_code)
-        print("RESPONSE TEXT: ", res.text)
-        print("RESPONSE URL: ", res.url)
-        print("RESPONSE COOKIES: ", res.cookies)
-        print("RESPONSE CONTENT: ", res.content)
-        print("RESPONSE RAW: ", res.raw)
-        print("RESPONSE STATUS: ", res.status_code)
-        print("RESPONSE: ", res.json())
-        res.raise_for_status()  # Raise an error for bad responses
-
-        print("RESPONSE SUCCESSFUL: ", {"res": res.json(), "gateway_ref": tx_ref})
+        res.raise_for_status() 
         return {"res": res.json(), "gateway_ref": tx_ref}
     
     def verify_payment(self, tx_ref: str) -> dict:
