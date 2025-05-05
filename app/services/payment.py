@@ -233,81 +233,86 @@ def verify_paypal_payment(db: Session, transaction_id: str):
 async def flutterwave_webhook(db: Session, request):
     try:
         print("Received webhook from flutterwave")
-        event_dict = await request.json() # request.json() is always async in FastAPI, so at least webhook_flutterwave should be async
+        event_dict = await request.json()
         print(f"Received event: {event_dict}")
+        
         signature = request.headers.get("verif-hash", None)
-
         if not signature or signature != settings.FLW_SECRET_HASH:
-            return response(status.HTTP_401_UNAUTHORIZED, "This request is not form flutterwave‼️")
+            return response(status.HTTP_401_UNAUTHORIZED, "This request is not from flutterwave‼️")
+        
+        print("Signature verified")
 
-        event = event_dict.get("event")
-        payload = event_dict.get("data")
+        # Flutterwave sends the entire payload at root level
+        payload = event_dict
+        transaction_status = payload.get("status", "").lower()
+        tx_ref = payload.get("txRef")
+        amount = payload.get("amount")
+        email = payload.get("customer", {}).get("email")
 
-        if event == "charge.completed" or event == "transfer.completed":
-            print("Completed event: ", event)
-            tx_ref = payload["tx_ref"]
-            email = payload["customer"]["email"]
-            amount = payload["amount"]
-            transaction_status = payload["status"].lower()
+        transaction = transaction_repository.get_by_gateway_ref(db, tx_ref)
+        if not transaction:
+            return response(status.HTTP_404_NOT_FOUND, f"Transaction with tx_ref {tx_ref} not found")
+        
+        print(f"Transaction found: {transaction}")
+        
+        # Verify with Flutterwave API
+        service = flutterwave_service.FlutterwaveService()
+        result = service.verify_transaction(payload.get("id"))
+        if not result:
+            return
 
-            transaction = transaction_repository.get_by_gateway_ref(db, tx_ref)
-            if not transaction:
-                return response(status.HTTP_404_NOT_FOUND, f"Transaction with tx_ref {tx_ref} not found")
-            
-            # TODO: re-query flutterwave by transaction_id to confirm status before updating backend
-            service = flutterwave_service.FlutterwaveService()
-            result = service.verify_transaction(payload.get('id'))
-            if not result:
-                return
-            
-            verify = result.get("data")
+        print("Verification result: ", result)
+        verify = result.get("data")
+        if (
+            transaction_status == "successful" and 
+            transaction_status == verify.get("status", "").lower() and 
+            tx_ref == verify.get("tx_ref") and 
+            amount == verify.get("amount") and 
+            payload.get("currency", "").lower() == verify.get("currency", "").lower()
+        ):
+            print("Succeeded: ", tx_ref)
+            _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.SUCCESS})
 
-            if (
-                transaction_status == "successful" and 
-                transaction_status == verify['status'].lower() and 
-                tx_ref == verify['tx_ref'] and 
-                amount == verify['amount'] and 
-                payload['currency'].lower() == verify['currency'].lower()
-            ):
-                print("Succeeded: ", tx_ref)
-                _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.SUCCESS})
+            print("Successful transaction updated in DB")
 
-                # Send an email to admin and customer
-                _send_email_to_admin_and_customer(
-                    customer=transaction.email, 
-                    app_source=transaction.app_source, 
-                    currency=transaction.currency, 
-                    amount=transaction.amount,
-                    event_body=event_dict,
-                    is_success=True
-                )
-                
-                if transaction.meta:
-                    webhook_body = {
-                        'payment_id': tx_ref,
-                        'is_paid': True,
-                        'metadata': transaction.meta
-                    }
-                    res = request_webhook_endpoint(webhook_body)
-            
-            else:
-                _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.FAILED})
 
-                # Send an email to admin and customer
-                _send_email_to_admin_and_customer(
-                    customer=transaction.email, 
-                    app_source=transaction.app_source, 
-                    currency=transaction.currency, 
-                    amount=transaction.amount,
-                    event_body=event_dict,
-                    is_success=False
-                )
-            
-            print(f"[Flutterwave] 💸 Payment processed for {email} with status {transaction_status}, amount: ₦{amount}")
+            _send_email_to_admin_and_customer(
+                customer=transaction.email, 
+                app_source=transaction.app_source, 
+                currency=transaction.currency, 
+                amount=transaction.amount,
+                event_body=event_dict,
+                is_success=True
+            )
 
-            return status.HTTP_200_OK
+            print("Email sent to admin and customer")
+
+            if transaction.meta:
+                webhook_body = {
+                    'payment_id': tx_ref,
+                    'is_paid': True,
+                    'metadata': transaction.meta
+                }
+                res = request_webhook_endpoint(webhook_body)
+
+                print("Webhook request sent successfully: ", res)
+        else:
+            _ = transaction_repository.update(db, transaction, {'status': PaymentStatus.FAILED})
+
+            _send_email_to_admin_and_customer(
+                customer=transaction.email, 
+                app_source=transaction.app_source, 
+                currency=transaction.currency, 
+                amount=transaction.amount,
+                event_body=event_dict,
+                is_success=False
+            )
+        
+        print(f"[Flutterwave] 💸 Payment processed for {email} with status {transaction_status}, amount: ₦{amount}")
+
     except Exception as e:
-        return response(status_code=500, message=str(e))
+        print("Error in flutterwave_webhook:", e)
+
     
 
 async def stripe_webhook(db: Session, request):
