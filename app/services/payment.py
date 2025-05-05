@@ -65,6 +65,11 @@ def make_payment(db: Session, payment_in: PaymentRequest, metadata: dict):
         gateway_ref = res.pop('gateway_ref')
         updated_transaction = transaction_repository.update(db, transaction, {'gateway_ref': gateway_ref})
         
+        print(f"Updated transaction: {updated_transaction}")
+
+        res_dict  = {f"{payment_in.gateway.value}_response": res, "transaction_in_db": updated_transaction.to_dict()}
+        print(f"Payment initiated: {res_dict}")
+        
         return response(
             status.HTTP_201_CREATED,
             "Payment has been initiated",
