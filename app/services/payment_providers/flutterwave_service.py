@@ -45,7 +45,7 @@ class FlutterwaveService(PaymentService):
                 "meta": {
                     "user_id": str(customer.get("id")),
                     "transaction_id": str(transaction_id),
-                    "custom": metadata.get("custom", None)
+                   # "custom": metadata.get("custom", None)
                 }
             }
         )
