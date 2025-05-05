@@ -59,6 +59,8 @@ def make_payment(db: Session, payment_in: PaymentRequest, metadata: dict):
 
         res = service.initiate_payment(amount, currency, transaction.id, customer_data, metadata)
 
+        print(f"Payment response: {res}")
+
         # update transaction by setting gateway_ref field
         gateway_ref = res.pop('gateway_ref')
         updated_transaction = transaction_repository.update(db, transaction, {'gateway_ref': gateway_ref})

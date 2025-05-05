@@ -42,8 +42,6 @@ class StripeService(PaymentService):
             }
         )
 
-        print(f"Stripe Session: {session}")
-
         return {"payment_link": session.url, "gateway_ref": session.id}
     
     def verify_payment(self, session_id: str):
