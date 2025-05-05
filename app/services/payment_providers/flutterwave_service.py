@@ -17,6 +17,9 @@ class FlutterwaveService(PaymentService):
 
         tx_ref = self.generate_tx_ref()
 
+        print("FLW TX REF: ", tx_ref)
+        print("SETTING FLW SECRET KEY: ", settings.FLW_SECRET_KEY)
+
         res = requests.post(
             "https://api.flutterwave.com/v3/payments",
             headers={
