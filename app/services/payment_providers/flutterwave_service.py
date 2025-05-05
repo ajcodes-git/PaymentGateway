@@ -15,7 +15,12 @@ class FlutterwaveService(PaymentService):
         
         amount_in_naira = self.get_usd_to_ngn_conversion(amount)
         
+        print("AMOUNT IN NAIRA: ", amount_in_naira)
+
+
         tx_ref = self.generate_tx_ref()
+
+        print("TX REF: ", tx_ref)
 
         res = requests.post(
             "https://api.flutterwave.com/v3/payments",
@@ -102,6 +107,9 @@ class FlutterwaveService(PaymentService):
             
             print("CONVERSION RESULT: ", result)
             data = result.get('data', None)
+
+            print("CONVERSION DATA: ", data)
+            print("CONVERSION DATA Amount: ", data.get('source', {}).get('amount')) if data else None
             return data.get('source', {}).get('amount') if data else None
         except requests.exceptions.RequestException as e:
             print(f"Error making request to Flutterwave API: {e}")
