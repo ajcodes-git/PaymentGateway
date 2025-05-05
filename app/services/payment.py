@@ -72,6 +72,7 @@ def make_payment(db: Session, payment_in: PaymentRequest, metadata: dict):
             }
         )
     except Exception as e:
+        print("Exception in make_payment: ", e)
         return response(status_code=500, message=str(e))
     
 
